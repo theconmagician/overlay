@@ -1,0 +1,281 @@
+<title>Overlay</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column, phone-first. Summary → chart → periods → mode toggles. */
+:root{
+  --bg:#07090d; --panel:#0e1219; --line:#1a212c; --line2:#262f3d;
+  --fg:#e9eef5; --muted:#7c8899; --dim:#4c5767;
+  --a:#3d8bfd; --b:#ff8a3d; --up:#1fbf6c; --down:#f0484e;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--sans);font-size:15px;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:560px;margin:0 auto;padding-block:12px 28px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between}
+.mark{display:flex;align-items:center;gap:8px;font-weight:600;font-size:18px;letter-spacing:.01em}
+.mark i{width:14px;height:14px;border-radius:50%;display:inline-block;background:var(--a);box-shadow:7px 0 0 0 var(--b);margin-right:8px;opacity:.95}
+.icon-btn{background:none;border:1px solid var(--line2);color:var(--muted);border-radius:10px;height:36px;padding:0 12px;font:500 13px var(--sans);cursor:pointer}
+.icon-btn:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+form.tickers{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:8px}
+.tk{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0 12px;height:46px;min-width:0}
+.tk .dot{width:9px;height:9px;border-radius:2px;flex:none}
+.tk input{all:unset;flex:1;min-width:0;font:500 16px var(--mono);text-transform:uppercase;letter-spacing:.04em;color:var(--fg)}
+.tk input::placeholder{color:var(--dim)}
+.go{background:var(--a);color:#05101f;border:0;border-radius:12px;padding:0 16px;font:600 14px var(--sans);cursor:pointer}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat .sym{font:500 13px var(--mono);letter-spacing:.06em}
+.stat .pct{font:500 30px/1.15 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat .px{font:400 13px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.verdict{font-size:13px;color:var(--muted);min-height:18px}
+.verdict b{font-weight:500;color:var(--fg)}
+.chart-box{position:relative;height:340px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);touch-action:pan-y;user-select:none}
+canvas{display:block;width:100%;height:100%}
+.periods{display:flex;justify-content:space-between;gap:2px}
+.periods button{flex:1;background:none;border:0;color:var(--muted);font:500 13px var(--sans);height:36px;border-radius:9px;cursor:pointer;padding:0}
+.periods button[aria-pressed="true"]{color:var(--b);background:#ff8a3d17}
+.toggles{display:flex;gap:10px;flex-wrap:wrap}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:3px;flex:1;min-width:150px}
+.seg button{flex:1;border:0;background:none;color:var(--muted);font:500 13px var(--sans);height:32px;border-radius:8px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--line2);color:var(--fg)}
+.status{font-size:13px;color:var(--muted);line-height:1.5}
+.status.err{color:var(--down)}
+.status .pill{display:inline-block;font:500 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--b);border:1px solid #ff8a3d55;border-radius:6px;padding:1px 6px;margin-right:6px}
+.settings{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.settings label{font-size:13px;color:var(--muted)}
+.settings .row{display:flex;gap:8px}
+.settings input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line2);border-radius:10px;height:40px;padding:0 12px;color:var(--fg);font:400 14px var(--mono)}
+.settings p{margin:0;font-size:13px;color:var(--muted);line-height:1.55}
+.settings a{color:var(--a)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="mark"><i aria-hidden="true"></i>Overlay</div>
+    <button class="icon-btn" id="setBtn" type="button" aria-expanded="false" aria-controls="settings">Data key</button>
+  </header>
+
+  <section class="settings" id="settings" hidden>
+    <label for="keyIn">Twelve Data API key</label>
+    <div class="row">
+      <input id="keyIn" type="text" autocomplete="off" spellcheck="false" placeholder="Paste your free key">
+      <button class="go" id="keySave" type="button">Save</button>
+    </div>
+    <p>Get a free key at <a href="https://twelvedata.com/pricing" target="_blank" rel="noopener">twelvedata.com</a> (800 requests a day, 8 a minute). It stays on this device. Without a key, Overlay shows sample data.</p>
+  </section>
+
+  <form class="tickers" id="tickForm" autocomplete="off">
+    <label class="tk"><span class="dot" style="background:var(--a)"></span><input id="symA" maxlength="10" placeholder="AAPL" aria-label="Ticker A"></label>
+    <label class="tk"><span class="dot" style="background:var(--b)"></span><input id="symB" maxlength="10" placeholder="MSFT" aria-label="Ticker B"></label>
+    <button class="go" type="submit">Go</button>
+  </form>
+
+  <div class="summary">
+    <div class="stat"><div class="sym" id="sA" style="color:var(--a)">—</div><div class="pct" id="pA">—</div><div class="px" id="xA">&nbsp;</div></div>
+    <div class="stat"><div class="sym" id="sB" style="color:var(--b)">—</div><div class="pct" id="pB">—</div><div class="px" id="xB">&nbsp;</div></div>
+  </div>
+  <div class="verdict" id="verdict"></div>
+
+  <div class="chart-box" id="box"><canvas id="cv" role="img" aria-label="Overlay chart of two tickers"></canvas></div>
+
+  <nav class="periods" id="periods" aria-label="Time period"></nav>
+
+  <div class="toggles">
+    <div class="seg" role="group" aria-label="Chart style"><button type="button" data-style="line">Line</button><button type="button" data-style="candle">Candle</button></div>
+    <div class="seg" role="group" aria-label="Scale"><button type="button" data-scale="pct">% change</button><button type="button" data-scale="price">Price</button></div>
+  </div>
+
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+(function(){
+const PERIODS={
+  '1D':{interval:'5min',size:200,days:1,step:3e5,fmt:'time'},
+  '5D':{interval:'30min',size:80,days:5,step:18e5,fmt:'day'},
+  '1M':{interval:'1day',size:22,step:864e5,fmt:'day'},
+  '3M':{interval:'1day',size:64,step:864e5,fmt:'day'},
+  '6M':{interval:'1day',size:127,step:864e5,fmt:'day'},
+  'YTD':{interval:'1day',size:400,ytd:true,step:864e5,fmt:'day'},
+  '1Y':{interval:'1week',size:53,step:6048e5,fmt:'month'},
+  '5Y':{interval:'1month',size:61,step:2592e6,fmt:'month'},
+  'All':{interval:'1month',size:5000,step:2592e6,fmt:'year'}
+};
+const C={a:'#3d8bfd',b:'#ff8a3d',up:'#1fbf6c',down:'#f0484e',grid:'#141a23',axis:'#7c8899',zero:'#344052',cross:'#5b6778',bg:'#07090d'};
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{const v=localStorage.getItem('overlay.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('overlay.'+k,JSON.stringify(v))}catch(e){}}};
+
+const S={a:store.get('a','AAPL'),b:store.get('b','MSFT'),period:store.get('period','3M'),style:store.get('style','candle'),scale:store.get('scale','pct'),key:store.get('key',''),data:null,hover:-1,sample:false};
+const cache={};
+
+$('symA').value=S.a;$('symB').value=S.b;$('keyIn').value=S.key;
+
+const per=$('periods');
+Object.keys(PERIODS).forEach(p=>{const b=document.createElement('button');b.type='button';b.textContent=p;b.dataset.p=p;b.onclick=()=>{S.period=p;store.set('period',p);syncButtons();load()};per.appendChild(b)});
+document.querySelectorAll('[data-style]').forEach(b=>b.onclick=()=>{S.style=b.dataset.style;store.set('style',S.style);syncButtons();draw()});
+document.querySelectorAll('[data-scale]').forEach(b=>b.onclick=()=>{S.scale=b.dataset.scale;store.set('scale',S.scale);syncButtons();draw()});
+function syncButtons(){
+  per.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.p===S.period));
+  document.querySelectorAll('[data-style]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.style===S.style));
+  document.querySelectorAll('[data-scale]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.scale===S.scale));
+}
+$('setBtn').onclick=()=>{const s=$('settings');s.hidden=!s.hidden;$('setBtn').setAttribute('aria-expanded',!s.hidden)};
+$('keySave').onclick=()=>{S.key=$('keyIn').value.trim();store.set('key',S.key);for(const k in cache)delete cache[k];$('settings').hidden=true;$('setBtn').setAttribute('aria-expanded','false');load()};
+$('tickForm').addEventListener('submit',e=>{e.preventDefault();const a=$('symA').value.trim().toUpperCase(),b=$('symB').value.trim().toUpperCase();if(!a||!b){status('Enter two tickers.',true);return}S.a=a;S.b=b;$('symA').value=a;$('symB').value=b;store.set('a',a);store.set('b',b);document.activeElement.blur();load()});
+
+function status(msg,err,html){const el=$('status');el.className='status'+(err?' err':'');if(html)el.innerHTML=msg;else el.textContent=msg}
+
+function parseT(s){const m=s.match(/(\d+)-(\d+)-(\d+)(?:[ T](\d+):(\d+))?/);return new Date(+m[1],m[2]-1,+m[3],+(m[4]||0),+(m[5]||0)).getTime()}
+function dayKey(t){const d=new Date(t);return d.getFullYear()*1e4+(d.getMonth()+1)*100+d.getDate()}
+
+async function fetchSeries(sym,p){
+  const cfg=PERIODS[p];const ck=sym+'|'+p;
+  if(cache[ck]&&Date.now()-cache[ck].at<6e4)return cache[ck].rows;
+  let url='https://api.twelvedata.com/time_series?symbol='+encodeURIComponent(sym)+'&interval='+cfg.interval+'&outputsize='+cfg.size+'&apikey='+encodeURIComponent(S.key);
+  if(cfg.ytd)url+='&start_date='+new Date().getFullYear()+'-01-01';
+  let r;try{r=await fetch(url)}catch(e){throw new Error('Could not reach Twelve Data. Check your connection and try again.')}
+  const j=await r.json();
+  if(j.status==='error'){
+    if(j.code===429||/credits|limit/i.test(j.message||''))throw new Error('Twelve Data rate limit hit. Wait a minute and tap Go again.');
+    if(j.code===401)throw new Error('That API key was rejected. Check it under Data key.');
+    throw new Error(sym+': '+(j.message||'not found'));
+  }
+  const rows=(j.values||[]).map(v=>({t:parseT(v.datetime),o:+v.open,h:+v.high,l:+v.low,c:+v.close})).reverse();
+  cache[ck]={at:Date.now(),rows};return rows;
+}
+
+function hash(s){let h=2166136261;for(const ch of s)h=Math.imul(h^ch.charCodeAt(0),16777619);return h>>>0}
+function sampleSeries(sym,p){
+  const cfg=PERIODS[p];let n=cfg.days?(cfg.days*(cfg.interval==='5min'?78:13)):(cfg.ytd?Math.round((Date.now()-new Date(new Date().getFullYear(),0,1))/864e5*5/7):cfg.size);
+  if(p==='All')n=240;
+  let s=hash(sym+p);const rnd=()=>{s=Math.imul(s^s>>>15,2246822507);s=Math.imul(s^s>>>13,3266489909);return((s^=s>>>16)>>>0)/4294967296};
+  const vol=({'1D':.0018,'5D':.004}[p]||.013)*(1+(hash(sym)%5)/6);const drift=((hash(sym)%9)-3)/9000*(cfg.step/864e5);
+  let px=40+hash(sym)%360;const rows=[];
+  const end=new Date();end.setHours(16,0,0,0);
+  for(let i=0;i<n;i++){
+    let t;
+    if(cfg.days){const per=cfg.interval==='5min'?78:13;const d=Math.floor(i/per),k=i%per;const day=new Date(end);let back=cfg.days-1-d;while(back>0){day.setDate(day.getDate()-1);if(day.getDay()%6)back--}while(!(day.getDay()%6))day.setDate(day.getDate()-1);day.setHours(9,30,0,0);t=day.getTime()+k*cfg.step}
+    else t=end.getTime()-(n-1-i)*cfg.step*(cfg.interval==='1day'?7/5:1);
+    const o=px;px=Math.max(1,o*(1+drift+(rnd()-.5)*2*vol));const h=Math.max(o,px)*(1+rnd()*vol*.6),l=Math.min(o,px)*(1-rnd()*vol*.6);
+    rows.push({t,o,h,l,c:px});
+  }
+  return rows;
+}
+
+function align(A,B,p){
+  const cfg=PERIODS[p];
+  if(cfg.days){const days=[...new Set(A.map(r=>dayKey(r.t)))].sort().slice(-cfg.days);A=A.filter(r=>days.includes(dayKey(r.t)));B=B.filter(r=>days.includes(dayKey(r.t)))}
+  const key=cfg.interval==='1month'?(t=>{const d=new Date(t);return d.getFullYear()*12+d.getMonth()}):cfg.interval==='1week'?(t=>Math.floor((t/864e5+3)/7)):(t=>t);
+  const mb=new Map(B.map(r=>[key(r.t),r]));const out=[];
+  A.forEach(r=>{const m=mb.get(key(r.t));if(m)out.push({t:r.t,a:r,b:m})});
+  return out;
+}
+
+let seq=0;
+async function load(){
+  const my=++seq;S.hover=-1;
+  status('Loading '+S.a+' and '+S.b+'…');
+  try{
+    let A,B;
+    if(S.key){[A,B]=await Promise.all([fetchSeries(S.a,S.period),fetchSeries(S.b,S.period)]);S.sample=false}
+    else{A=sampleSeries(S.a,S.period);B=sampleSeries(S.b,S.period);S.sample=true}
+    if(my!==seq)return;
+    const rows=align(A,B,S.period);
+    if(rows.length<2)throw new Error('Not enough overlapping data for '+S.a+' and '+S.b+' in '+S.period+'.');
+    S.data=rows;
+    if(S.sample)status('<span class="pill">Sample data</span>Prices are made up. Add a free key under Data key to load real ones.',false,true);
+    else status(rows.length+' periods · Twelve Data'+(PERIODS[S.period].interval.includes('min')?' · intraday may be delayed':''));
+  }catch(e){if(my!==seq)return;S.data=null;status(e.message,true)}
+  draw();
+}
+
+const cv=$('cv'),box=$('box'),ctx=cv.getContext('2d');
+let W=0,H=0;
+function resize(){const dpr=window.devicePixelRatio||1;W=box.clientWidth;H=box.clientHeight;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
+new ResizeObserver(resize).observe(box);
+
+const pct=(v,base)=>(v/base-1)*100;
+const fPct=v=>(v>=0?'+':'−')+Math.abs(v).toFixed(2)+'%';
+const fPx=v=>'$'+(v>=1000?v.toLocaleString(undefined,{maximumFractionDigits:0}):v.toFixed(2));
+function fTime(t,fmt){const d=new Date(t),mo=d.toLocaleString(undefined,{month:'short'});
+  if(fmt==='time')return d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+  if(fmt==='day')return mo+' '+d.getDate();
+  if(fmt==='month')return mo+" '"+String(d.getFullYear()).slice(2);
+  return String(d.getFullYear())}
+function fFull(t){const p=PERIODS[S.period];const d=new Date(t);
+  if(p.interval.includes('min'))return d.toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  if(p.interval==='1month')return d.toLocaleString(undefined,{month:'long',year:'numeric'});
+  return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}
+function niceTicks(lo,hi,n){const span=hi-lo||1,raw=span/n,mag=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=raw);const out=[];for(let v=Math.ceil(lo/st)*st;v<=hi+1e-9;v+=st)out.push(+v.toFixed(10));return out}
+
+function summary(){
+  const d=S.data;$('sA').textContent=S.a;$('sB').textContent=S.b;
+  if(!d){['pA','pB'].forEach(i=>$(i).textContent='—');$('xA').innerHTML=$('xB').innerHTML='&nbsp;';$('verdict').textContent='';return}
+  const i=S.hover>=0?S.hover:d.length-1,ba=d[0].a.o,bb=d[0].b.o;
+  const ra=pct(d[i].a.c,ba),rb=pct(d[i].b.c,bb);
+  $('pA').textContent=fPct(ra);$('pB').textContent=fPct(rb);
+  $('xA').textContent=fPx(d[i].a.c);$('xB').textContent=fPx(d[i].b.c);
+  const gap=Math.abs(ra-rb),lead=ra>=rb?S.a:S.b;
+  $('verdict').innerHTML=S.hover>=0?'<b>'+fFull(d[i].t)+'</b>':(gap<0.005?'Dead even over '+S.period:'<b>'+lead+'</b> leads by '+gap.toFixed(2)+' pts over '+S.period);
+}
+
+function draw(){
+  summary();if(!W)return;
+  ctx.clearRect(0,0,W,H);
+  const d=S.data;
+  if(!d){ctx.fillStyle=C.axis;ctx.font='13px '+getComputedStyle(document.body).fontFamily;ctx.textAlign='center';ctx.fillText('No chart yet',W/2,H/2);return}
+  const price=S.scale==='price',cand=S.style==='candle';
+  const L=price?50:4,R=54,T=14,Bm=24,pw=W-L-R,ph=H-T-Bm,n=d.length,slot=pw/n;
+  const ba=d[0].a.o,bb=d[0].b.o;
+  const val=(side,v)=>price?v:pct(v,side==='a'?ba:bb);
+  function range(side){let lo=Infinity,hi=-Infinity;d.forEach(r=>{const x=r[side];const h=cand?x.h:Math.max(x.c,r===d[0]?x.o:x.c),l=cand?x.l:Math.min(x.c,r===d[0]?x.o:x.c);lo=Math.min(lo,val(side,l));hi=Math.max(hi,val(side,h))});return[lo,hi]}
+  let sc={};
+  if(price){['a','b'].forEach(s=>{let[lo,hi]=range(s);const p=(hi-lo)*.08||1;sc[s]=[lo-p,hi+p]})}
+  else{const ra=range('a'),rb=range('b');let lo=Math.min(ra[0],rb[0],0),hi=Math.max(ra[1],rb[1],0);const p=(hi-lo)*.08||1;sc.a=sc.b=[lo-p,hi+p]}
+  const Y=(s,v)=>T+(sc[s][1]-v)/(sc[s][1]-sc[s][0])*ph;
+  const X=i=>L+(i+.5)*slot;
+  const font=getComputedStyle(document.body).getPropertyValue('--mono')||'monospace';
+  ctx.font='11px '+font;ctx.textBaseline='middle';
+  const ticks=niceTicks(sc.a[0],sc.a[1],5);
+  ticks.forEach(v=>{const y=Math.round(Y('a',v))+.5;ctx.strokeStyle=C.grid;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.stroke()});
+  if(!price){ctx.textAlign='left';ticks.forEach(v=>{ctx.fillStyle=C.axis;ctx.fillText((v>0?'+':v<0?'−':'')+Math.abs(+v.toFixed(2))+'%',L+pw+8,Y('a',v))});
+    const y0=Math.round(Y('a',0))+.5;ctx.setLineDash([4,4]);ctx.strokeStyle=C.zero;ctx.beginPath();ctx.moveTo(L,y0);ctx.lineTo(L+pw,y0);ctx.stroke();ctx.setLineDash([])}
+  else{ctx.textAlign='right';ticks.forEach(v=>{ctx.fillStyle=C.a;ctx.fillText(fAx(v),L-6,Y('a',v))});
+    ctx.textAlign='left';niceTicks(sc.b[0],sc.b[1],5).forEach(v=>{ctx.fillStyle=C.b;ctx.fillText(fAx(v),L+pw+8,Y('b',v))})}
+  ctx.fillStyle=C.axis;ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  const fmt=PERIODS[S.period].fmt,lab=Math.max(2,Math.min(5,Math.floor(pw/80)));let last='';
+  for(let k=0;k<lab;k++){const i=Math.round(k*(n-1)/(lab-1)),s=fTime(d[i].t,fmt);if(s===last)continue;last=s;ctx.textAlign=k===0?'left':k===lab-1?'right':'center';ctx.fillText(s,k===0?L:k===lab-1?L+pw:X(i),H-7)}
+  if(cand){
+    const bw=Math.max(1,Math.min(9,slot*.34)),off=Math.min(slot*.22,bw*.62+1.5),lw=bw>=5?2:bw>=2.5?1.25:1;
+    [['a',-off,C.a],['b',off,C.b]].forEach(([s,o,col])=>{
+      d.forEach((r,i)=>{const k=r[s],cx=X(i)+o,yo=Y(s,val(s,k.o)),yc=Y(s,val(s,k.c));
+        ctx.strokeStyle=col;ctx.lineWidth=Math.max(1,lw*.75);ctx.beginPath();ctx.moveTo(Math.round(cx)+.5,Y(s,val(s,k.h)));ctx.lineTo(Math.round(cx)+.5,Y(s,val(s,k.l)));ctx.stroke();
+        const top=Math.min(yo,yc),hgt=Math.max(1.5,Math.abs(yo-yc));
+        ctx.fillStyle=k.c>=k.o?C.up:C.down;ctx.fillRect(cx-bw/2,top,bw,hgt);
+        if(bw>=2.5){ctx.lineWidth=lw;ctx.strokeStyle=col;ctx.strokeRect(cx-bw/2,top,bw,hgt)}
+      })});
+  }else{
+    [['a',C.a],['b',C.b]].forEach(([s,col])=>{ctx.strokeStyle=col;ctx.lineWidth=2;ctx.lineJoin=ctx.lineCap='round';ctx.beginPath();d.forEach((r,i)=>{const y=Y(s,val(s,r[s].c));i?ctx.lineTo(X(i),y):ctx.moveTo(X(i),y)});ctx.stroke();
+      if(S.hover<0){const y=Y(s,val(s,d[n-1][s].c));ctx.fillStyle=col;ctx.beginPath();ctx.arc(X(n-1),y,4,0,7);ctx.fill();ctx.strokeStyle=C.bg;ctx.lineWidth=2;ctx.stroke()}});
+  }
+  if(S.hover>=0){const x=Math.round(X(S.hover))+.5;ctx.strokeStyle=C.cross;ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(x,T-6);ctx.lineTo(x,T+ph);ctx.stroke();ctx.setLineDash([]);
+    if(!cand)[['a',C.a],['b',C.b]].forEach(([s,col])=>{ctx.fillStyle=col;ctx.beginPath();ctx.arc(X(S.hover),Y(s,val(s,d[S.hover][s].c)),4.5,0,7);ctx.fill();ctx.strokeStyle=C.bg;ctx.lineWidth=2;ctx.stroke()})}
+  function fAx(v){return v>=1000?Math.round(v).toLocaleString():v>=100?v.toFixed(0):v.toFixed(2)}
+}
+
+function hoverAt(clientX){if(!S.data)return;const r=box.getBoundingClientRect(),L=S.scale==='price'?50:4,pw=W-L-54;let i=Math.floor((clientX-r.left-L)/(pw/S.data.length));i=Math.max(0,Math.min(S.data.length-1,i));if(i!==S.hover){S.hover=i;draw()}}
+function clear(){if(S.hover!==-1){S.hover=-1;draw()}}
+box.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'||e.buttons)hoverAt(e.clientX)});
+box.addEventListener('pointerdown',e=>hoverAt(e.clientX));
+box.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse')clear()});
+box.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse')clear()});
+box.addEventListener('pointercancel',clear);
+box.addEventListener('touchmove',e=>{if(e.touches[0]){hoverAt(e.touches[0].clientX);e.preventDefault()}},{passive:false});
+
+syncButtons();load();
+})();
+</script>
