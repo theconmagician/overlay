@@ -65,7 +65,7 @@ canvas{display:block;width:100%;height:100%}
       <input id="keyIn" type="text" autocomplete="off" spellcheck="false" placeholder="Paste your free key">
       <button class="go" id="keySave" type="button">Save</button>
     </div>
-    <p>Get a free key at <a href="https://twelvedata.com/pricing" target="_blank" rel="noopener">twelvedata.com</a> (800 requests a day, 8 a minute). It stays on this device. Without a key, Overlay shows sample data.</p>
+    <p>Get a free key at <a href="https://twelvedata.com/pricing" target="_blank" rel="noopener">twelvedata.com</a> (800 requests a day, 8 a minute). It stays on this device. Live prices work without one. Add your own key if you see rate-limit messages.</p>
   </section>
 
   <form class="tickers" id="tickForm" autocomplete="off">
@@ -109,10 +109,10 @@ const C={a:'#3d8bfd',b:'#ff8a3d',up:'#1fbf6c',down:'#f0484e',grid:'#141a23',axis
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{const v=localStorage.getItem('overlay.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('overlay.'+k,JSON.stringify(v))}catch(e){}}};
 
-const S={a:store.get('a','AAPL'),b:store.get('b','MSFT'),period:store.get('period','3M'),style:store.get('style','candle'),scale:store.get('scale','pct'),key:store.get('key',''),data:null,hover:-1,sample:false};
+const S={a:store.get('a','AAPL'),b:store.get('b','MSFT'),period:store.get('period','3M'),style:store.get('style','candle'),scale:store.get('scale','pct'),key:store.get('key','')||'7cb08633352242ffb84e0eb8a632ca6a',data:null,hover:-1,sample:false};
 const cache={};
 
-$('symA').value=S.a;$('symB').value=S.b;$('keyIn').value=S.key;
+$('symA').value=S.a;$('symB').value=S.b;$('keyIn').value=store.get('key','');
 
 const per=$('periods');
 Object.keys(PERIODS).forEach(p=>{const b=document.createElement('button');b.type='button';b.textContent=p;b.dataset.p=p;b.onclick=()=>{S.period=p;store.set('period',p);syncButtons();load()};per.appendChild(b)});
@@ -124,7 +124,7 @@ function syncButtons(){
   document.querySelectorAll('[data-scale]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.scale===S.scale));
 }
 $('setBtn').onclick=()=>{const s=$('settings');s.hidden=!s.hidden;$('setBtn').setAttribute('aria-expanded',!s.hidden)};
-$('keySave').onclick=()=>{S.key=$('keyIn').value.trim();store.set('key',S.key);for(const k in cache)delete cache[k];$('settings').hidden=true;$('setBtn').setAttribute('aria-expanded','false');load()};
+$('keySave').onclick=()=>{const k=$('keyIn').value.trim();store.set('key',k);S.key=k||'7cb08633352242ffb84e0eb8a632ca6a';for(const k in cache)delete cache[k];$('settings').hidden=true;$('setBtn').setAttribute('aria-expanded','false');load()};
 $('tickForm').addEventListener('submit',e=>{e.preventDefault();const a=$('symA').value.trim().toUpperCase(),b=$('symB').value.trim().toUpperCase();if(!a||!b){status('Enter two tickers.',true);return}S.a=a;S.b=b;$('symA').value=a;$('symB').value=b;store.set('a',a);store.set('b',b);document.activeElement.blur();load()});
 
 function status(msg,err,html){const el=$('status');el.className='status'+(err?' err':'');if(html)el.innerHTML=msg;else el.textContent=msg}
@@ -134,7 +134,7 @@ function dayKey(t){const d=new Date(t);return d.getFullYear()*1e4+(d.getMonth()+
 
 async function fetchSeries(sym,p){
   const cfg=PERIODS[p];const ck=sym+'|'+p;
-  if(cache[ck]&&Date.now()-cache[ck].at<6e4)return cache[ck].rows;
+  if(cache[ck]&&Date.now()-cache[ck].at<(cfg.interval.includes('min')?6e4:3e5))return cache[ck].rows;
   let url='https://api.twelvedata.com/time_series?symbol='+encodeURIComponent(sym)+'&interval='+cfg.interval+'&outputsize='+cfg.size+'&apikey='+encodeURIComponent(S.key);
   if(cfg.ytd)url+='&start_date='+new Date().getFullYear()+'-01-01';
   let r;try{r=await fetch(url)}catch(e){throw new Error('Could not reach Twelve Data. Check your connection and try again.')}
