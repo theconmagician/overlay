@@ -1,8 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07090d">
 <title>Overlay</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
+[hidden]{display:none!important}
+body{margin:0}
 /* Layout: one narrow column, phone-first. Summary → chart → periods → mode toggles. */
 :root{
   --bg:#07090d; --panel:#0e1219; --line:#1a212c; --line2:#262f3d;
@@ -52,6 +60,8 @@ canvas{display:block;width:100%;height:100%}
 .settings a{color:var(--a)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+</head>
+<body>
 
 <div class="wrap">
   <header>
@@ -279,3 +289,6 @@ box.addEventListener('touchmove',e=>{if(e.touches[0]){hoverAt(e.touches[0].clien
 syncButtons();load();
 })();
 </script>
+
+</body>
+</html>
